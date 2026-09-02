@@ -38,11 +38,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
   };
 
   const demoAccounts = [
-    { label: 'Super Admin', email: 'admin@schoolos.com', password: 'password123' },
     { label: 'School Admin', email: 'school@demo.com', password: 'password123' },
     { label: 'Teacher', email: 'teacher@demo.com', password: 'password123' },
     { label: 'Student', email: 'student@demo.com', password: 'password123' },
-    { label: 'Parent', email: 'parent@demo.com', password: 'password123' },
   ];
 
   const validateForm = (): boolean => {
