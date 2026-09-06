@@ -31,7 +31,8 @@ export class AuthController {
       return res.status(200).json({
         success: true,
         message: 'Login successful',
-        ...result,
+        token: result.token,
+        user: result.user,
       });
     } catch (error: any) {
       console.error('Login error:', error);
@@ -60,11 +61,13 @@ export class AuthController {
   async register(req: Request, res: Response) {
     try {
       const result = await AuthService.register(req.body);
+      setAuthCookie(res, result.refreshToken);
 
       return res.status(201).json({
         success: true,
         message: 'Registration successful',
-        ...result,
+        token: result.token,
+        user: result.user,
       });
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -86,14 +89,15 @@ export class AuthController {
   async logout(req: Request, res: Response) {
     try {
       const userId = req.user?.userId;
+      const isProduction = process.env.NODE_ENV === 'production';
       if (userId) {
         await AuthService.logout(userId);
       }
 
       res.clearCookie('refreshToken', {
         httpOnly: true,
-        sameSite: 'lax',
-        secure: false,
+        sameSite: isProduction ? 'none' : 'lax',
+        secure: isProduction,
         path: '/',
       });
 
@@ -112,7 +116,7 @@ export class AuthController {
 
   async refreshToken(req: Request, res: Response) {
     try {
-      const { refreshToken } = req.body;
+      const refreshToken = req.cookies?.refreshToken;
 
       if (!refreshToken) {
         return res.status(400).json({
@@ -126,7 +130,7 @@ export class AuthController {
 
       return res.status(200).json({
         success: true,
-        ...result,
+        token: result.token,
       });
     } catch (error: any) {
       console.error('Refresh token error:', error);

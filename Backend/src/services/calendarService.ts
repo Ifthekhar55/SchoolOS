@@ -136,13 +136,15 @@ export class CalendarService {
     });
     if (!existing) throw new Error('Event not found');
 
+    const { schoolId: _schoolId, createdBy: _createdBy, ...eventData } = data;
+
     return prisma.calendarEvent.update({
       where: { id },
       data: {
-        ...data,
-        startDate: data.startDate ? new Date(data.startDate) : undefined,
-        endDate: data.endDate ? new Date(data.endDate) : undefined,
-        recurrenceEndDate: data.recurrenceEndDate ? new Date(data.recurrenceEndDate) : undefined,
+        ...eventData,
+        startDate: eventData.startDate ? new Date(eventData.startDate) : undefined,
+        endDate: eventData.endDate ? new Date(eventData.endDate) : undefined,
+        recurrenceEndDate: eventData.recurrenceEndDate ? new Date(eventData.recurrenceEndDate) : undefined,
       },
     });
   }

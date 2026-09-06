@@ -2,6 +2,9 @@ import { Router } from 'express';
 import FeeController from '../controllers/feeController';
 import { authenticate, authorize } from '../middleware/auth';
 import { tenantMiddleware } from '../middleware/tenant';
+import { validate } from '../middleware/validate';
+import { idParamsSchema } from '../schemas/common';
+import { createFeeSchema, processPaymentSchema, updatePaymentSchema } from '../schemas/fee';
 
 const router = Router();
 
@@ -23,7 +26,7 @@ router.delete('/fee-structures/:id', authorize('school_admin'), FeeController.de
 // ============ Fees ============
 router.get('/', FeeController.getFees);
 router.get('/:id', FeeController.getFee);
-router.post('/', authorize('school_admin', 'accountant'), FeeController.createFee);
+router.post('/', authorize('school_admin', 'accountant'), validate({ body: createFeeSchema }), FeeController.createFee);
 router.post('/bulk', authorize('school_admin', 'accountant'), FeeController.createBulkFees);
 router.put('/:id', authorize('school_admin', 'accountant'), FeeController.updateFee);
 router.delete('/:id', authorize('school_admin'), FeeController.deleteFee);
@@ -41,9 +44,9 @@ router.post('/invoices/:id/send', authorize('school_admin', 'accountant'), FeeCo
 // ============ Payments ============
 router.get('/payments', FeeController.getPayments);
 router.get('/payments/:id', FeeController.getPayment);
-router.post('/payments', authorize('school_admin', 'accountant'), FeeController.processPayment);
-router.put('/payments/:id', authorize('school_admin', 'accountant'), FeeController.updatePayment);
-router.delete('/payments/:id', authorize('school_admin'), FeeController.deletePayment);
+router.post('/payments', authorize('school_admin', 'accountant'), validate({ body: processPaymentSchema }), FeeController.processPayment);
+router.put('/payments/:id', authorize('school_admin', 'accountant'), validate({ params: idParamsSchema, body: updatePaymentSchema }), FeeController.updatePayment);
+router.delete('/payments/:id', authorize('school_admin'), validate({ params: idParamsSchema }), FeeController.deletePayment);
 
 // ============ Online Payments ============
 router.post('/payments/online/initiate', FeeController.initiateOnlinePayment);

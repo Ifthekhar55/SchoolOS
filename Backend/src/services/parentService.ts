@@ -61,8 +61,12 @@ export class ParentService {
     });
 
     // Get unread messages
+    const parent = await prisma.parent.findFirst({
+      where: { id: parentId, schoolId },
+      select: { userId: true },
+    });
     const unreadMessages = await prisma.message.count({
-      where: { parentId, receiverId: (await prisma.parent.findUnique({ where: { id: parentId } }))?.userId, isRead: false },
+      where: { schoolId, parentId, receiverId: parent?.userId, isRead: false },
     });
 
     return {
@@ -115,8 +119,8 @@ export class ParentService {
       },
     });
 
-    const totalDue = fees.reduce((sum, f) => sum + f.dueAmount, 0);
-    const totalPaid = fees.reduce((sum, f) => sum + f.paidAmount, 0);
+    const totalDue = fees.reduce((sum, f) => sum + Number(f.dueAmount), 0);
+    const totalPaid = fees.reduce((sum, f) => sum + Number(f.paidAmount), 0);
     const overdueCount = fees.filter(f => f.status === 'overdue').length;
 
     return {
@@ -271,8 +275,8 @@ export class ParentService {
       },
     });
 
-    const totalDue = fees.reduce((sum, f) => sum + f.dueAmount, 0);
-    const totalPaid = fees.reduce((sum, f) => sum + f.paidAmount, 0);
+    const totalDue = fees.reduce((sum, f) => sum + Number(f.dueAmount), 0);
+    const totalPaid = fees.reduce((sum, f) => sum + Number(f.paidAmount), 0);
     const overdueCount = fees.filter(f => f.status === 'overdue').length;
 
     return {
@@ -295,7 +299,7 @@ export class ParentService {
       student: { schoolId },
     };
 
-    if (filters.examId) where.examId = filters.examId;
+    if (filters.examId) where.exam = { id: filters.examId, schoolId };
 
     const results = await prisma.result.findMany({
       where,
@@ -678,7 +682,8 @@ export class ParentService {
   // ============ Payments ============
 
   async makePayment(parentId: string, schoolId: string, data: any) {
-    const { childId, feeId, amount, method } = data;
+    const { childId, feeId, method } = data;
+    const amount = Number(data.amount);
 
     // Verify child belongs to parent
     const child = await prisma.student.findFirst({
@@ -709,8 +714,8 @@ export class ParentService {
       });
 
       // Update fee
-      const newPaidAmount = fee.paidAmount + amount;
-      const newDueAmount = fee.totalAmount - newPaidAmount;
+      const newPaidAmount = Number(fee.paidAmount) + amount;
+      const newDueAmount = Number(fee.totalAmount) - newPaidAmount;
       const status = newDueAmount <= 0 ? 'paid' : 'partial';
 
       await tx.fee.update({

@@ -31,6 +31,9 @@ export class ClassService {
   }
 
   async updateAcademicYear(id: string, schoolId: string, data: any) {
+    const existing = await prisma.academicYear.findFirst({ where: { id, schoolId } });
+    if (!existing) throw new Error('Academic year not found');
+
     // If this is set as current, unset other current years
     if (data.isCurrent) {
       await prisma.academicYear.updateMany({
@@ -39,10 +42,12 @@ export class ClassService {
       });
     }
 
+    const { schoolId: _schoolId, ...academicYearData } = data;
+
     return prisma.academicYear.update({
       where: { id },
       data: {
-        ...data,
+        ...academicYearData,
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         endDate: data.endDate ? new Date(data.endDate) : undefined,
       },
@@ -50,6 +55,9 @@ export class ClassService {
   }
 
   async setCurrentAcademicYear(id: string, schoolId: string) {
+    const existing = await prisma.academicYear.findFirst({ where: { id, schoolId } });
+    if (!existing) throw new Error('Academic year not found');
+
     await prisma.academicYear.updateMany({
       where: { schoolId, isCurrent: true },
       data: { isCurrent: false },
@@ -236,6 +244,27 @@ export class ClassService {
   async createClass(schoolId: string, data: any) {
     const { sections, subjects, ...classData } = data;
 
+    const academicYear = await prisma.academicYear.findFirst({
+      where: { id: data.academicYearId, schoolId },
+      select: { id: true },
+    });
+    if (!academicYear) throw new Error('Academic year not found in this school');
+
+    if (classData.teacherId) {
+      const teacher = await prisma.teacher.findFirst({
+        where: { id: classData.teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
+
+    if (subjects?.length) {
+      const subjectCount = await prisma.subject.count({
+        where: { id: { in: subjects }, schoolId },
+      });
+      if (subjectCount !== subjects.length) throw new Error('Subject not found in this school');
+    }
+
     const newClass = await prisma.$transaction(async (tx) => {
       // Create the class
       const newClass = await tx.class.create({
@@ -280,11 +309,27 @@ export class ClassService {
     });
     if (!existing) throw new Error('Class not found');
 
+    if (data.academicYearId) {
+      const academicYear = await prisma.academicYear.findFirst({
+        where: { id: data.academicYearId, schoolId },
+        select: { id: true },
+      });
+      if (!academicYear) throw new Error('Academic year not found in this school');
+    }
+    if (data.teacherId) {
+      const teacher = await prisma.teacher.findFirst({
+        where: { id: data.teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
+
+    const { schoolId: _schoolId, sections: _sections, classSubjects: _classSubjects, ...classData } = data;
+
     return prisma.class.update({
       where: { id },
       data: {
-        ...data,
-        academicYearId: data.academicYearId,
+        ...classData,
       },
       include: {
         teacher: {
@@ -503,9 +548,19 @@ export class ClassService {
     });
     if (!classData) throw new Error('Class not found');
 
+    if (data.teacherId) {
+      const teacher = await prisma.user.findFirst({
+        where: { id: data.teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
+
+    const { classId: _classId, ...sectionData } = data;
+
     return prisma.section.create({
       data: {
-        ...data,
+        ...sectionData,
         classId,
       },
       include: {
@@ -537,6 +592,14 @@ export class ClassService {
       roomNumber,
       isActive,
     } = data;
+
+    if (teacherId) {
+      const teacher = await prisma.user.findFirst({
+        where: { id: teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
 
     return prisma.section.update({
       where: { id },
@@ -641,6 +704,20 @@ export class ClassService {
     });
     if (!classData) throw new Error('Class not found');
 
+    const subject = await prisma.subject.findFirst({
+      where: { id: subjectId, schoolId },
+      select: { id: true },
+    });
+    if (!subject) throw new Error('Subject not found in this school');
+
+    if (teacherId) {
+      const teacher = await prisma.user.findFirst({
+        where: { id: teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
+
     if (sectionId) {
       const section = await prisma.section.findFirst({
         where: { id: sectionId, classId },
@@ -685,6 +762,14 @@ export class ClassService {
       },
     });
     if (!existing) throw new Error('Class subject not found');
+
+    if (data.teacherId) {
+      const teacher = await prisma.user.findFirst({
+        where: { id: data.teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
 
     return prisma.classSubject.update({
       where: { id: existing.id },

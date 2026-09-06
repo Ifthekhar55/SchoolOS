@@ -2,6 +2,9 @@ import { Router } from 'express';
 import StudentController from '../controllers/studentController';
 import { authenticate, authorize } from '../middleware/auth';
 import { tenantMiddleware } from '../middleware/tenant';
+import { validate } from '../middleware/validate';
+import { z } from 'zod';
+import { idParamsSchema, resetPasswordSchema } from '../schemas/common';
 
 const router = Router();
 
@@ -21,10 +24,10 @@ router.post('/bulk-delete', authorize('school_admin'), StudentController.bulkDel
 
 router.get('/:id', StudentController.getStudent);
 router.get('/:id/login-account', StudentController.getStudentLoginAccount);
-router.post('/:id/reset-password', authorize('school_admin'), StudentController.resetStudentPassword);
-router.put('/:id', authorize('school_admin', 'teacher'), StudentController.updateStudent);
-router.delete('/:id', authorize('school_admin'), StudentController.deleteStudent);
-router.post('/:id/activate', authorize('school_admin'), StudentController.activateStudent);
-router.post('/:id/deactivate', authorize('school_admin'), StudentController.deactivateStudent);
+router.post('/:id/reset-password', authorize('school_admin'), validate({ params: idParamsSchema, body: resetPasswordSchema }), StudentController.resetStudentPassword);
+router.put('/:id', authorize('school_admin', 'teacher'), validate({ params: idParamsSchema, body: z.object({}).passthrough() }), StudentController.updateStudent);
+router.delete('/:id', authorize('school_admin'), validate({ params: idParamsSchema }), StudentController.deleteStudent);
+router.post('/:id/activate', authorize('school_admin'), validate({ params: idParamsSchema, body: z.object({}).strict() }), StudentController.activateStudent);
+router.post('/:id/deactivate', authorize('school_admin'), validate({ params: idParamsSchema, body: z.object({}).strict() }), StudentController.deactivateStudent);
 
 export default router;

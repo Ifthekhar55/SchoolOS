@@ -66,13 +66,13 @@ export class AttendanceService {
     const nextDate = new Date(dateObj);
     nextDate.setUTCDate(nextDate.getUTCDate() + 1);
 
-    const classRecord = await prisma.class.findUnique({
-      where: { id: classId },
+    const classRecord = await prisma.class.findFirst({
+      where: { id: classId, schoolId },
       select: { name: true },
     });
 
-    const sectionRecord = await prisma.section.findUnique({
-      where: { id: sectionId },
+    const sectionRecord = await prisma.section.findFirst({
+      where: { id: sectionId, class: { schoolId } },
       select: { name: true },
     });
 
@@ -124,9 +124,9 @@ export class AttendanceService {
 
     return {
       classId,
-      className: await this.getClassName(classId),
+      className: await this.getClassName(classId, schoolId),
       sectionId,
-      sectionName: await this.getSectionName(sectionId),
+      sectionName: await this.getSectionName(sectionId, schoolId),
       date: dateObj,
       ...summary,
       attendancePercentage: summary.totalStudents > 0 
@@ -175,6 +175,24 @@ export class AttendanceService {
     const nextDate = new Date(dateObj);
     nextDate.setUTCDate(nextDate.getUTCDate() + 1);
 
+    const classRecord = await prisma.class.findFirst({
+      where: { id: classId, schoolId },
+      select: { id: true },
+    });
+    const sectionRecord = await prisma.section.findFirst({
+      where: { id: sectionId, class: { id: classId, schoolId } },
+      select: { id: true },
+    });
+    if (!classRecord || !sectionRecord) throw new Error('Class or section not found');
+
+    for (const record of records) {
+      const student = await prisma.student.findFirst({
+        where: { id: record.studentId, schoolId },
+        select: { id: true },
+      });
+      if (!student) throw new Error('Student not found in this school');
+    }
+
     // Check if it's a holiday
     const holiday = await prisma.holiday.findFirst({
       where: {
@@ -197,6 +215,7 @@ export class AttendanceService {
         const existingAttendance = await tx.attendance.findFirst({
           where: {
             studentId: record.studentId,
+            schoolId,
             date: { gte: dateObj, lt: nextDate },
           },
         });
@@ -235,6 +254,24 @@ export class AttendanceService {
   async markBulkAttendance(schoolId: string, data: any, markedBy: string) {
     const { classId, sectionId, date, defaultStatus, records } = data;
     const dateObj = new Date(date);
+
+    const classRecord = await prisma.class.findFirst({
+      where: { id: classId, schoolId },
+      select: { id: true },
+    });
+    const sectionRecord = await prisma.section.findFirst({
+      where: { id: sectionId, class: { id: classId, schoolId } },
+      select: { id: true },
+    });
+    if (!classRecord || !sectionRecord) throw new Error('Class or section not found');
+
+    for (const record of records) {
+      const student = await prisma.student.findFirst({
+        where: { id: record.studentId, schoolId },
+        select: { id: true },
+      });
+      if (!student) throw new Error('Student not found in this school');
+    }
 
     // Check if it's a holiday
     const holiday = await prisma.holiday.findFirst({
@@ -312,10 +349,10 @@ export class AttendanceService {
 
     const [classRecord, sectionRecord] = await Promise.all([
       classId
-        ? prisma.class.findUnique({ where: { id: classId }, select: { name: true } })
+        ? prisma.class.findFirst({ where: { id: classId, schoolId }, select: { name: true } })
         : Promise.resolve(null),
       sectionId
-        ? prisma.section.findUnique({ where: { id: sectionId }, select: { name: true } })
+        ? prisma.section.findFirst({ where: { id: sectionId, class: { schoolId } }, select: { name: true } })
         : Promise.resolve(null),
     ]);
 
@@ -630,18 +667,18 @@ export class AttendanceService {
 
   // ============ Helper Methods ============
 
-  private async getClassName(classId: string): Promise<string> {
-    const cls = await prisma.class.findUnique({
-      where: { id: classId },
+  private async getClassName(classId: string, schoolId: string): Promise<string> {
+    const cls = await prisma.class.findFirst({
+      where: { id: classId, schoolId },
       select: { name: true },
     });
     return cls?.name || classId;
   }
 
-  private async getSectionName(sectionId: string): Promise<string> {
+  private async getSectionName(sectionId: string, schoolId: string): Promise<string> {
     if (!sectionId) return '';
-    const section = await prisma.section.findUnique({
-      where: { id: sectionId },
+    const section = await prisma.section.findFirst({
+      where: { id: sectionId, class: { schoolId } },
       select: { name: true },
     });
     return section?.name || sectionId;

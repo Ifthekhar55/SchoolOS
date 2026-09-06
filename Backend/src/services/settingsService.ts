@@ -201,9 +201,11 @@ export class SettingsService {
       });
     }
 
+    const { schoolId: _schoolId, ...termData } = data;
+
     return prisma.term.create({
       data: {
-        ...data,
+        ...termData,
         schoolId,
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
@@ -217,6 +219,8 @@ export class SettingsService {
     });
     if (!existing) throw new Error('Term not found');
 
+    const { schoolId: _schoolId, ...termData } = data;
+
     // If this term is active, deactivate others
     if (data.isActive) {
       await prisma.term.updateMany({
@@ -228,9 +232,9 @@ export class SettingsService {
     return prisma.term.update({
       where: { id },
       data: {
-        ...data,
-        startDate: data.startDate ? new Date(data.startDate) : undefined,
-        endDate: data.endDate ? new Date(data.endDate) : undefined,
+        ...termData,
+        startDate: termData.startDate ? new Date(termData.startDate) : undefined,
+        endDate: termData.endDate ? new Date(termData.endDate) : undefined,
       },
     });
   }
@@ -285,9 +289,10 @@ export class SettingsService {
   // ============ Grades ============
 
   async createGrade(schoolId: string, data: any) {
+    const { schoolId: _schoolId, ...gradeData } = data;
     return prisma.grade.create({
       data: {
-        ...data,
+        ...gradeData,
         schoolId,
       },
     });
@@ -299,9 +304,11 @@ export class SettingsService {
     });
     if (!existing) throw new Error('Grade not found');
 
+    const { schoolId: _schoolId, ...gradeData } = data;
+
     return prisma.grade.update({
       where: { id },
-      data,
+      data: gradeData,
     });
   }
 

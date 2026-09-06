@@ -31,7 +31,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           api.setToken(null);
           localStorage.removeItem('user');
           localStorage.removeItem('auth_token');
-          localStorage.removeItem('refresh_token');
           setUser(null);
           setToken(null);
         }
@@ -54,13 +53,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(response.user);
       setToken(response.token);
       
-      // Store in localStorage
       localStorage.setItem('user', JSON.stringify(response.user));
       localStorage.setItem('auth_token', response.token);
-      
-      if (response.refreshToken) {
-        localStorage.setItem('refresh_token', response.refreshToken);
-      }
       
       console.log('✅ Login successful, redirecting to dashboard...');
       
@@ -84,9 +78,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
       localStorage.setItem('auth_token', response.token);
-      if (response.refreshToken) {
-        localStorage.setItem('refresh_token', response.refreshToken);
-      }
       window.location.href = response.user.role === 'parent' ? '/parent' : '/dashboard';
       return response;
     } finally {
@@ -106,7 +97,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // ⚠️ CRITICAL: Clear ALL localStorage items
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
-      localStorage.removeItem('refresh_token');
       localStorage.removeItem('currentSchoolId');
       
       // Clear any session storage

@@ -70,9 +70,11 @@ export class ReportService {
     });
     if (!existing) throw new Error('Report not found');
 
+    const { schoolId: _schoolId, createdBy: _createdBy, ...reportData } = data;
+
     return prisma.report.update({
       where: { id },
-      data,
+      data: reportData,
     });
   }
 
@@ -347,9 +349,14 @@ export class ReportService {
 
   private async getExamData(schoolId: string, filters: any) {
     const { classId, sectionId, examId } = filters;
-    const where: any = { schoolId };
-    if (classId) where.classId = classId;
-    if (sectionId) where.sectionId = sectionId;
+    const where: any = {
+      exam: {
+        schoolId,
+        ...(classId ? { classId } : {}),
+        ...(sectionId ? { sectionId } : {}),
+      },
+      student: { schoolId },
+    };
     if (examId) where.examId = examId;
 
     const results = await prisma.result.findMany({
@@ -738,7 +745,7 @@ export class ReportService {
       select: { paidAmount: true },
     });
 
-    return fees.reduce((sum, f) => sum + f.paidAmount, 0);
+    return fees.reduce((sum, f) => sum + Number(f.paidAmount), 0);
   }
 
   private calculateNextRun(frequency: string): Date {

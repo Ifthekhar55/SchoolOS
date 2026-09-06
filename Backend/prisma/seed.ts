@@ -51,7 +51,13 @@ async function main() {
   const schoolAdminPassword = await bcrypt.hash('password123', 10);
   const schoolAdmin = await prisma.user.upsert({
     where: { email: 'school@demo.com' },
-    update: {},
+    update: {
+      password: schoolAdminPassword,
+      role: UserRole.school_admin,
+      schoolId: defaultSchool.id,
+      isActive: true,
+      isVerified: true,
+    },
     create: {
       name: 'School Admin',
       email: 'school@demo.com',
@@ -70,7 +76,13 @@ async function main() {
   const teacherPassword = await bcrypt.hash('password123', 10);
   const teacher = await prisma.user.upsert({
     where: { email: 'teacher@demo.com' },
-    update: {},
+    update: {
+      password: teacherPassword,
+      role: UserRole.teacher,
+      schoolId: defaultSchool.id,
+      isActive: true,
+      isVerified: true,
+    },
     create: {
       name: 'Demo Teacher',
       email: 'teacher@demo.com',
@@ -89,7 +101,13 @@ async function main() {
   const studentPassword = await bcrypt.hash('password123', 10);
   const student = await prisma.user.upsert({
     where: { email: 'student@demo.com' },
-    update: {},
+    update: {
+      password: studentPassword,
+      role: UserRole.student,
+      schoolId: defaultSchool.id,
+      isActive: true,
+      isVerified: true,
+    },
     create: {
       name: 'Demo Student',
       email: 'student@demo.com',

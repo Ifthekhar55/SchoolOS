@@ -57,6 +57,13 @@ export class SchoolController {
       const { id } = req.params;
       const { user } = req;
 
+      if (user?.role !== 'super_admin' && user?.schoolId !== id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied',
+        });
+      }
+
       const school = await prisma.school.findUnique({
         where: { id },
         include: {
@@ -102,14 +109,6 @@ export class SchoolController {
         return res.status(404).json({
           success: false,
           message: 'School not found',
-        });
-      }
-
-      // Check access
-      if (user?.role !== 'super_admin' && user?.schoolId !== id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied',
         });
       }
 

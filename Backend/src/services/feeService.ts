@@ -90,9 +90,18 @@ export class FeeService {
   }
 
   async createFeeStructure(schoolId: string, data: any) {
+    if (data.classId) {
+      const classRecord = await prisma.class.findFirst({
+        where: { id: data.classId, schoolId },
+        select: { id: true },
+      });
+      if (!classRecord) throw new Error('Class not found in this school');
+    }
+
+    const { schoolId: _schoolId, ...structureData } = data;
     return prisma.feeStructure.create({
       data: {
-        ...data,
+        ...structureData,
         schoolId,
       },
       include: {
@@ -112,9 +121,19 @@ export class FeeService {
     });
     if (!existing) throw new Error('Fee structure not found');
 
+    if (data.classId) {
+      const classRecord = await prisma.class.findFirst({
+        where: { id: data.classId, schoolId },
+        select: { id: true },
+      });
+      if (!classRecord) throw new Error('Class not found in this school');
+    }
+
+    const { schoolId: _schoolId, ...structureData } = data;
+
     return prisma.feeStructure.update({
       where: { id },
-      data,
+      data: structureData,
       include: {
         class: {
           select: {
@@ -167,8 +186,8 @@ export class FeeService {
     const scopedConditions: any[] = [];
 
     if (classId || sectionId) {
-      const className = classId ? (await prisma.class.findUnique({ where: { id: classId }, select: { name: true } }))?.name : null;
-      const sectionRecord = sectionId ? (await prisma.section.findUnique({ where: { id: sectionId }, select: { name: true, classId: true } })) : null;
+      const className = classId ? (await prisma.class.findFirst({ where: { id: classId, schoolId }, select: { name: true } }))?.name : null;
+      const sectionRecord = sectionId ? (await prisma.section.findFirst({ where: { id: sectionId, class: { schoolId } }, select: { name: true, classId: true } })) : null;
       const sectionName = sectionRecord?.name || null;
 
       if (classId && sectionId) {
@@ -349,16 +368,24 @@ export class FeeService {
     if (!classRecord) throw new Error('Student class not found');
     const sectionRecord = student.section
       ? await prisma.section.findFirst({
-          where: { classId: classRecord.id, name: student.section },
+          where: { classId: classRecord.id, name: student.section, class: { schoolId } },
         })
       : null;
 
-    const dueAmount = data.amount;
-    const totalAmount = dueAmount + (data.lateFee || 0);
+    const feeStructure = await prisma.feeStructure.findFirst({
+      where: { id: data.feeStructureId, schoolId },
+      select: { id: true },
+    });
+    if (!feeStructure) throw new Error('Fee structure not found in this school');
+
+    const { schoolId: _schoolId, ...feeData } = data;
+
+      const dueAmount = Number(data.amount);
+      const totalAmount = dueAmount + Number(data.lateFee || 0);
 
     return prisma.fee.create({
       data: {
-        ...data,
+        ...feeData,
         schoolId,
         classId: classRecord.id,
         sectionId: sectionRecord?.id,
@@ -430,8 +457,8 @@ export class FeeService {
       });
 
       if (!existing) {
-        const dueAmount = feeStructure.amount;
-        const totalAmount = dueAmount + (feeStructure.lateFee || 0);
+        const dueAmount = Number(feeStructure.amount);
+        const totalAmount = dueAmount + Number(feeStructure.lateFee || 0);
 
         const fee = await prisma.fee.create({
           data: {
@@ -443,7 +470,7 @@ export class FeeService {
             amount: dueAmount,
             dueAmount,
             totalAmount,
-            lateFee: feeStructure.lateFee || 0,
+            lateFee: Number(feeStructure.lateFee || 0),
             month,
             year: parseInt(year),
             dueDate: new Date(dueDate),
@@ -468,12 +495,14 @@ export class FeeService {
     });
     if (!existing) throw new Error('Fee not found');
 
+    const { schoolId: _schoolId, studentId: _studentId, feeStructureId: _feeStructureId, classId: _classId, sectionId: _sectionId, ...feeData } = data;
+
     return prisma.fee.update({
       where: { id },
       data: {
-        ...data,
-        dueAmount: data.amount || existing.amount,
-        totalAmount: (data.amount || existing.amount) + (data.lateFee || existing.lateFee || 0),
+        ...feeData,
+        dueAmount: Number(feeData.amount ?? existing.amount),
+        totalAmount: Number(feeData.amount ?? existing.amount) + Number(feeData.lateFee ?? existing.lateFee ?? 0),
       },
     });
   }
@@ -574,19 +603,19 @@ export class FeeService {
       throw new Error('No fees found for this student in the specified month');
     }
 
-    const subtotal = fees.reduce((sum, fee) => sum + fee.amount, 0);
-    const lateFee = fees.reduce((sum, fee) => sum + (fee.lateFee || 0), 0);
+    const subtotal = fees.reduce((sum, fee) => sum + Number(fee.amount), 0);
+    const lateFee = fees.reduce((sum, fee) => sum + Number(fee.lateFee || 0), 0);
     const total = subtotal + lateFee;
-    const paidAmount = fees.reduce((sum, fee) => sum + fee.paidAmount, 0);
+    const paidAmount = fees.reduce((sum, fee) => sum + Number(fee.paidAmount), 0);
     const dueAmount = total - paidAmount;
 
     const invoiceItems = fees.map(fee => ({
       feeId: fee.id,
       feeName: fee.feeStructure.name,
       type: fee.feeStructure.type,
-      amount: fee.amount,
-      paidAmount: fee.paidAmount || 0,
-      dueAmount: fee.dueAmount || 0,
+      amount: Number(fee.amount),
+      paidAmount: Number(fee.paidAmount || 0),
+      dueAmount: Number(fee.dueAmount || 0),
       month: fee.month,
       year: fee.year,
     }));
@@ -724,10 +753,33 @@ export class FeeService {
   }
 
   async processPayment(schoolId: string, data: any, receivedBy: string) {
-    const { studentId, invoiceId, feeId, amount, method, transactionId, notes } = data;
+    const { studentId, invoiceId, feeId, method, transactionId, notes } = data;
+    const amount = Number(data.amount);
 
     // Start transaction
     return prisma.$transaction(async (tx) => {
+      const student = await tx.student.findFirst({
+        where: { id: studentId, schoolId },
+        select: { id: true },
+      });
+      if (!student) throw new Error('Student not found in this school');
+
+      if (invoiceId) {
+        const invoice = await tx.invoice.findFirst({
+          where: { id: invoiceId, schoolId, studentId },
+          select: { id: true },
+        });
+        if (!invoice) throw new Error('Invoice not found in this school');
+      }
+
+      if (feeId) {
+        const fee = await tx.fee.findFirst({
+          where: { id: feeId, schoolId, studentId },
+          select: { id: true },
+        });
+        if (!fee) throw new Error('Fee not found in this school');
+      }
+
       // Create payment record
       const payment = await tx.payment.create({
         data: {
@@ -749,8 +801,8 @@ export class FeeService {
           where: { id: feeId, schoolId },
         });
         if (fee) {
-          const newPaidAmount = fee.paidAmount + amount;
-          const newDueAmount = fee.totalAmount - newPaidAmount;
+          const newPaidAmount = Number(fee.paidAmount) + amount;
+          const newDueAmount = Number(fee.totalAmount) - newPaidAmount;
           const status = newDueAmount <= 0 ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
 
           await tx.fee.update({
@@ -774,8 +826,8 @@ export class FeeService {
           where: { id: invoiceId, schoolId },
         });
         if (invoice) {
-          const newPaidAmount = invoice.paidAmount + amount;
-          const newDueAmount = invoice.total - newPaidAmount;
+          const newPaidAmount = Number(invoice.paidAmount) + amount;
+          const newDueAmount = Number(invoice.total) - newPaidAmount;
           const status = newDueAmount <= 0 ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
 
           await tx.invoice.update({
@@ -800,9 +852,11 @@ export class FeeService {
     });
     if (!existing) throw new Error('Payment not found');
 
+    const { schoolId: _schoolId, studentId: _studentId, invoiceId: _invoiceId, feeId: _feeId, receivedBy: _receivedBy, ...paymentData } = data;
+
     return prisma.payment.update({
       where: { id },
-      data,
+      data: paymentData,
     });
   }
 
@@ -865,10 +919,10 @@ export class FeeService {
       where,
     });
 
-    const totalCollected = fees.reduce((sum, f) => sum + f.paidAmount, 0);
-    const totalDue = fees.reduce((sum, f) => sum + f.dueAmount, 0);
-    const totalOverdue = fees.filter(f => f.status === 'overdue').reduce((sum, f) => sum + f.dueAmount, 0);
-    const totalAmount = fees.reduce((sum, f) => sum + f.totalAmount, 0);
+    const totalCollected = fees.reduce((sum, f) => sum + Number(f.paidAmount), 0);
+    const totalDue = fees.reduce((sum, f) => sum + Number(f.dueAmount), 0);
+    const totalOverdue = fees.filter(f => f.status === 'overdue').reduce((sum, f) => sum + Number(f.dueAmount), 0);
+    const totalAmount = fees.reduce((sum, f) => sum + Number(f.totalAmount), 0);
 
     const byStatus = {
       paid: fees.filter(f => f.status === 'paid').length,

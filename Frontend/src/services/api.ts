@@ -30,7 +30,6 @@ class ApiService {
     } else {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
-      localStorage.removeItem('refresh_token');
     }
   }
 
@@ -84,7 +83,6 @@ class ApiService {
           // Token expired or invalid
           this.setToken(null);
           localStorage.removeItem('user');
-          localStorage.removeItem('refresh_token');
           
           // Redirect to login if not already there
           if (!window.location.pathname.includes('/login') && 
@@ -134,10 +132,6 @@ class ApiService {
         this.setToken(response.token);
       }
       
-      if (response.refreshToken) {
-        localStorage.setItem('refresh_token', response.refreshToken);
-      }
-      
       if (response.user) {
         response.user = this.normalizeUser(response.user);
         localStorage.setItem('user', JSON.stringify(response.user));
@@ -171,10 +165,6 @@ class ApiService {
         this.setToken(response.token);
       }
       
-      if (response.refreshToken) {
-        localStorage.setItem('refresh_token', response.refreshToken);
-      }
-      
       if (response.user) {
         response.user = this.normalizeUser(response.user);
         localStorage.setItem('user', JSON.stringify(response.user));
@@ -202,37 +192,24 @@ class ApiService {
       this.setToken(null);
       localStorage.removeItem('user');
       localStorage.removeItem('auth_token');
-      localStorage.removeItem('refresh_token');
     }
   }
 
-  async refreshToken(): Promise<{ token: string; refreshToken?: string }> {
-    const refreshToken = localStorage.getItem('refresh_token');
-    
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
+  async refreshToken(): Promise<{ token: string }> {
     try {
-      const response = await this.request<{ token: string; refreshToken: string }>('/auth/refresh', {
+      const response = await this.request<{ token: string }>('/auth/refresh', {
         method: 'POST',
-        body: JSON.stringify({ refreshToken }),
       });
       
       if (response.token) {
         this.setToken(response.token);
       }
       
-      if (response.refreshToken) {
-        localStorage.setItem('refresh_token', response.refreshToken);
-      }
-      
-      return { token: response.token, refreshToken: response.refreshToken };
+      return { token: response.token };
     } catch (error) {
       // If refresh fails, clear everything
       this.setToken(null);
       localStorage.removeItem('user');
-      localStorage.removeItem('refresh_token');
       throw error;
     }
   }
@@ -249,7 +226,6 @@ class ApiService {
       if (error instanceof ApiError && error.status === 401) {
         this.setToken(null);
         localStorage.removeItem('user');
-        localStorage.removeItem('refresh_token');
         throw new Error('Session expired. Please login again.');
       }
       throw error;

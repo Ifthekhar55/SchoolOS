@@ -188,9 +188,26 @@ export class SubjectService {
     });
     if (!existing) throw new Error('Subject not found');
 
+    if (data.classId) {
+      const classRecord = await prisma.class.findFirst({
+        where: { id: data.classId, schoolId },
+        select: { id: true },
+      });
+      if (!classRecord) throw new Error('Class not found in this school');
+    }
+    if (data.teacherId) {
+      const teacher = await prisma.teacher.findFirst({
+        where: { id: data.teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
+
+    const { schoolId: _schoolId, ...subjectData } = data;
+
     return prisma.subject.update({
       where: { id },
-      data,
+      data: subjectData,
       include: {
         class: {
           select: {

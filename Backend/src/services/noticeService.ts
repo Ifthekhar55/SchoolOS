@@ -110,7 +110,7 @@ export class NoticeService {
     if (!notice) throw new Error('Notice not found');
 
     const creator = notice.createdBy
-      ? await prisma.user.findUnique({ where: { id: notice.createdBy }, select: { role: true } })
+      ? await prisma.user.findFirst({ where: { id: notice.createdBy, schoolId }, select: { role: true } })
       : null;
 
     return {
@@ -175,8 +175,8 @@ export class NoticeService {
     if (!existing) throw new Error('Notice not found');
 
     if (requesterRole === 'teacher' && existing.createdBy) {
-      const creator = await prisma.user.findUnique({
-        where: { id: existing.createdBy },
+      const creator = await prisma.user.findFirst({
+        where: { id: existing.createdBy, schoolId },
         select: { role: true },
       });
       if (creator?.role === 'school_admin') {

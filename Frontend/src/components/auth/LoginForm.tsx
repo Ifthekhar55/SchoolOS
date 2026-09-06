@@ -30,11 +30,19 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
   const [errors, setErrors] = useState<Partial<LoginCredentials>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto-fill demo credentials with animation
-  const fillDemoCredentials = (email: string, password: string) => {
+  const loginWithDemoAccount = async (email: string, password: string) => {
     setFormData({ email, password, rememberMe: true });
     setLoginError('');
     setErrors({});
+
+    setIsSubmitting(true);
+    try {
+      await login({ email, password, rememberMe: true });
+    } catch (error: any) {
+      setLoginError(error.message || 'Demo login failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const demoAccounts = [
@@ -246,7 +254,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
         </button>
       </div>
 
-      {/* Demo Credentials with Quick Fill */}
+      {/* Demo Credentials with Quick Login */}
       <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4">
         <div className="flex items-center gap-2 mb-3">
           <User className="h-4 w-4 text-blue-600" />
@@ -257,7 +265,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
             <button
               key={account.email}
               type="button"
-              onClick={() => fillDemoCredentials(account.email, account.password)}
+              onClick={() => loginWithDemoAccount(account.email, account.password)}
+              disabled={isSubmitting || isLoading}
               className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 border border-blue-100 hover:border-blue-300 text-left"
             >
               <span className="block font-semibold text-slate-700">{account.label}</span>
@@ -266,7 +275,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
           ))}
         </div>
         <p className="mt-2 text-[10px] text-slate-400">
-          Click any role to auto-fill credentials
+          Click any role to sign in instantly
         </p>
       </div>
 

@@ -147,6 +147,29 @@ export class ExamService {
       ...examData
     } = data;
 
+    const academicYear = await prisma.academicYear.findFirst({
+      where: { id: data.academicYearId, schoolId },
+      select: { id: true },
+    });
+    const classRecord = await prisma.class.findFirst({
+      where: { id: data.classId, schoolId },
+      select: { id: true },
+    });
+    if (!academicYear || !classRecord) throw new Error('Exam relation not found in this school');
+    if (sectionId) {
+      const section = await prisma.section.findFirst({
+        where: { id: sectionId, class: { id: data.classId, schoolId } },
+        select: { id: true },
+      });
+      if (!section) throw new Error('Section not found in this school');
+    }
+    if (subjects?.length) {
+      const subjectCount = await prisma.subject.count({
+        where: { id: { in: subjects.map((subject: any) => subject.subjectId) }, schoolId },
+      });
+      if (subjectCount !== subjects.length) throw new Error('Subject not found in this school');
+    }
+
     const examId = await prisma.$transaction(async (tx) => {
       const exam = await tx.exam.create({
         data: {
@@ -397,7 +420,7 @@ export class ExamService {
     if (!exam) throw new Error('Exam not found');
 
     return prisma.examSubject.findMany({
-      where: { examId },
+      where: { examId, exam: { schoolId } },
       include: {
         subject: true,
         teacher: {
@@ -416,6 +439,19 @@ export class ExamService {
       where: { id: examId, schoolId },
     });
     if (!exam) throw new Error('Exam not found');
+
+    const subject = await prisma.subject.findFirst({
+      where: { id: data.subjectId, schoolId },
+      select: { id: true },
+    });
+    if (!subject) throw new Error('Subject not found in this school');
+    if (data.teacherId) {
+      const teacher = await prisma.user.findFirst({
+        where: { id: data.teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
 
     const existing = await prisma.examSubject.findFirst({
       where: { examId, subjectId: data.subjectId },
@@ -447,15 +483,25 @@ export class ExamService {
     if (!exam) throw new Error('Exam not found');
 
     const existing = await prisma.examSubject.findFirst({
-      where: { examId, subjectId },
+      where: { examId, subjectId, exam: { schoolId } },
     });
     if (!existing) throw new Error('Exam subject not found');
+
+    if (data.teacherId) {
+      const teacher = await prisma.user.findFirst({
+        where: { id: data.teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new Error('Teacher not found in this school');
+    }
+
+    const { examId: _examId, subjectId: _subjectId, ...examSubjectData } = data;
 
     return prisma.examSubject.update({
       where: { examId_subjectId: { examId, subjectId } },
       data: {
-        ...data,
-        date: data.date ? new Date(data.date) : undefined,
+        ...examSubjectData,
+        date: examSubjectData.date ? new Date(examSubjectData.date) : undefined,
       },
       include: {
         subject: true,
@@ -502,7 +548,7 @@ export class ExamService {
     if (!exam) throw new Error('Exam not found');
 
     const examSubject = await prisma.examSubject.findFirst({
-      where: { examId, subjectId },
+      where: { examId, subjectId, exam: { schoolId } },
       include: {
         subject: true,
       },
@@ -565,6 +611,14 @@ export class ExamService {
 
     const results: any[] = [];
 
+    for (const markData of data.marks) {
+      const student = await prisma.student.findFirst({
+        where: { id: markData.studentId, schoolId },
+        select: { id: true },
+      });
+      if (!student) throw new Error('Student not found in this school');
+    }
+
     await prisma.$transaction(async (tx) => {
       for (const markData of data.marks) {
         const percentage = (markData.marksObtained / examSubject.fullMarks) * 100;
@@ -613,7 +667,7 @@ export class ExamService {
     if (!exam) throw new Error('Exam not found');
 
     const examSubject = await prisma.examSubject.findFirst({
-      where: { examId, subjectId },
+      where: { examId, subjectId, exam: { schoolId } },
     });
     if (!examSubject) throw new Error('Exam subject not found');
 
@@ -621,6 +675,8 @@ export class ExamService {
       where: {
         examSubjectId: examSubject.id,
         studentId,
+        examSubject: { exam: { schoolId } },
+        student: { schoolId },
       },
     });
     if (!mark) throw new Error('Mark not found');
@@ -876,7 +932,7 @@ export class ExamService {
     if (!exam) throw new Error('Exam not found');
 
     await prisma.result.updateMany({
-      where: { examId },
+      where: { examId, exam: { schoolId } },
       data: { isPublished: true },
     });
 
@@ -896,6 +952,7 @@ export class ExamService {
     return prisma.result.findMany({
       where: {
         examId,
+        exam: { schoolId },
         student: {
           schoolId,
           class: classId,
@@ -961,9 +1018,11 @@ export class ExamService {
       });
     }
 
+    const { schoolId: _schoolId, ...gradeSystemData } = data;
+
     return prisma.gradeSystem.update({
       where: { id },
-      data,
+      data: gradeSystemData,
     });
   }
 
@@ -977,6 +1036,9 @@ export class ExamService {
   }
 
   async setDefaultGradeSystem(id: string, schoolId: string) {
+    const existing = await prisma.gradeSystem.findFirst({ where: { id, schoolId } });
+    if (!existing) throw new Error('Grade system not found');
+
     await prisma.gradeSystem.updateMany({
       where: { schoolId, isDefault: true },
       data: { isDefault: false },
